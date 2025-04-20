@@ -40,9 +40,13 @@ Key features:
 - Cross-platform support (Linux, Mac, Windows)  
 - “Show Log” button to view raw log entries
 
-<div align="center" style="margin: 40px 0;">
+<br><br>
+
+<div align="center">
   <img src="images/screenshot.png" alt="Screenshot">
 </div>
+
+<br><br>
 
 ## Installation
 
