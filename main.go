@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -48,7 +49,10 @@ func main() {
 	stopBtnContainer := styledButtonContainer(stopBtn, color.RGBA{R: 255, G: 182, B: 193, A: 255})
 
 	showLogBtn := widget.NewButton("Show Log", func() {
-		exec.Command("open", logFile).Start()
+		err := openLogFile(logFile)
+		if err != nil {
+			fmt.Println("Failed to open log file:", err)
+		}
 	})
 
 	buttonContainer := container.NewVBox(
@@ -182,4 +186,34 @@ func formatDuration(minutes int) string {
 		return fmt.Sprintf("%d h %02d", h, m)
 	}
 	return fmt.Sprintf("%d mins", minutes)
+}
+
+func openLogFile(filePath string) error {
+	var cmd *exec.Cmd
+
+	switch {
+	case isWindows():
+		cmd = exec.Command("cmd", "/c", "start", "", filePath)
+	case isMac():
+		cmd = exec.Command("open", filePath)
+	case isLinux():
+		cmd = exec.Command("xdg-open", filePath)
+	default:
+		return fmt.Errorf("unsupported platform")
+	}
+
+	return cmd.Start()
+}
+
+func isWindows() bool {
+	return strings.Contains(strings.ToLower(os.Getenv("OS")), "windows") ||
+		strings.Contains(strings.ToLower(runtime.GOOS), "windows")
+}
+
+func isMac() bool {
+	return runtime.GOOS == "darwin"
+}
+
+func isLinux() bool {
+	return runtime.GOOS == "linux"
 }
