@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,14 +17,28 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-const logFile = "work_log.txt"
+// === Configurable Constants ===
+const (
+	logFile          = "work_log.txt"
+	startAction      = 1
+	stopAction       = 0
+	logMinuteDivisor = 60
+	uiTickInterval   = 1 * time.Second
+	defaultWidth     = 350
+	defaultHeight    = 300
+	logDateFormat    = "20060102T150405"
+
+	appVersion      = "v1.1.0"
+	appName         = "mtimelog Lite"
+	workdaysPerWeek = 5 // <-- You can change this to 6 or 7 as needed
+)
 
 var isRunning bool
 var currentSessionStart time.Time
 
 func main() {
 	myApp := app.New()
-	myWindow := myApp.NewWindow("gtimelog lite")
+	myWindow := myApp.NewWindow(fmt.Sprintf("%s %s", appName, appVersion))
 
 	summaryLabel := widget.NewLabel("")
 	weeklySummaryLabel := widget.NewLabel("")
@@ -33,13 +48,13 @@ func main() {
 	var stopBtn *widget.Button
 
 	startBtn = widget.NewButton("Start", func() {
-		logTime("START")
+		logTime(startAction)
 		isRunning = true
 		currentSessionStart = time.Now()
 		updateUI(summaryLabel, weeklySummaryLabel, stateLabel, startBtn, stopBtn)
 	})
 	stopBtn = widget.NewButton("Stop", func() {
-		logTime("STOP")
+		logTime(stopAction)
 		isRunning = false
 		currentSessionStart = time.Time{}
 		updateUI(summaryLabel, weeklySummaryLabel, stateLabel, startBtn, stopBtn)
@@ -49,8 +64,7 @@ func main() {
 	stopBtnContainer := styledButtonContainer(stopBtn, color.RGBA{R: 255, G: 182, B: 193, A: 255})
 
 	showLogBtn := widget.NewButton("Show Log", func() {
-		err := openLogFile(logFile)
-		if err != nil {
+		if err := openLogFile(logFile); err != nil {
 			fmt.Println("Failed to open log file:", err)
 		}
 	})
@@ -67,13 +81,13 @@ func main() {
 	myWindow.SetContent(buttonContainer)
 
 	go func() {
-		for range time.Tick(time.Second) {
+		for range time.Tick(uiTickInterval) {
 			updateUI(summaryLabel, weeklySummaryLabel, stateLabel, startBtn, stopBtn)
 		}
 	}()
 
 	updateUI(summaryLabel, weeklySummaryLabel, stateLabel, startBtn, stopBtn)
-	myWindow.Resize(fyne.NewSize(350, 300))
+	myWindow.Resize(fyne.NewSize(defaultWidth, defaultHeight))
 	myWindow.ShowAndRun()
 }
 
@@ -83,7 +97,7 @@ func styledButtonContainer(btn *widget.Button, bgColor color.Color) *fyne.Contai
 	return container.NewMax(bg, btn)
 }
 
-func logTime(action string) {
+func logTime(action int) {
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
@@ -91,8 +105,8 @@ func logTime(action string) {
 	}
 	defer f.Close()
 
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	entry := fmt.Sprintf("%s %s\n", timestamp, action)
+	timestamp := time.Now().Format(logDateFormat)
+	entry := fmt.Sprintf("%s,%d\n", timestamp, action)
 	_, _ = f.WriteString(entry)
 }
 
@@ -102,7 +116,8 @@ func getWeeklySummary() string {
 	if offset == 0 {
 		offset = 7
 	}
-	weekStart := now.AddDate(0, 0, -offset+1).Truncate(24 * time.Hour)
+	weekStart := time.Date(now.Year(), now.Month(), now.Day()-offset+1, 0, 0, 0, 0, now.Location())
+
 	mins := calculateWorkTime(func(t time.Time) bool {
 		return t.After(weekStart)
 	})
@@ -111,7 +126,7 @@ func getWeeklySummary() string {
 		mins += int(time.Since(currentSessionStart).Minutes())
 	}
 
-	perDay := mins / 5
+	perDay := mins / workdaysPerWeek
 	return fmt.Sprintf("This Week's Work: %s (%s/day)", formatDuration(mins), formatDuration(perDay))
 }
 
@@ -123,8 +138,11 @@ func getState() string {
 }
 
 func updateUI(summaryLabel, weeklySummaryLabel, stateLabel *widget.Label, startBtn, stopBtn *widget.Button) {
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
 	mins := calculateWorkTime(func(t time.Time) bool {
-		return t.After(time.Now().Truncate(24 * time.Hour))
+		return t.After(todayStart)
 	})
 
 	if isRunning && !currentSessionStart.IsZero() {
@@ -155,28 +173,35 @@ func calculateWorkTime(filterFunc func(time.Time) bool) int {
 	var startTime time.Time
 
 	for _, line := range lines {
-		if len(line) < 19 {
+		if len(line) < 15 {
 			continue
 		}
-		parts := strings.SplitN(line, " ", 3)
-		if len(parts) < 3 {
+		parts := strings.SplitN(line, ",", 2)
+		if len(parts) < 2 {
 			continue
 		}
 
-		timeStr, action := parts[0]+" "+parts[1], parts[2]
-		logTime, err := time.Parse("2006-01-02 15:04:05", timeStr)
+		logTime, err := time.Parse(logDateFormat, parts[0])
 		if err != nil || !filterFunc(logTime) {
 			continue
 		}
 
-		if action == "START" {
+		actionCode, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if err != nil {
+			continue
+		}
+
+		switch actionCode {
+		case startAction:
 			startTime = logTime
-		} else if action == "STOP" && !startTime.IsZero() {
-			totalTime += int(logTime.Sub(startTime).Seconds())
-			startTime = time.Time{}
+		case stopAction:
+			if !startTime.IsZero() {
+				totalTime += int(logTime.Sub(startTime).Seconds())
+				startTime = time.Time{}
+			}
 		}
 	}
-	return totalTime / 60
+	return totalTime / logMinuteDivisor
 }
 
 func formatDuration(minutes int) string {
