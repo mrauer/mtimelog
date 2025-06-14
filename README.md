@@ -64,7 +64,7 @@ sudo apt-get install libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libg
 Then download and install the binary:
 
 ```bash
-curl -Lo mtimelog https://github.com/mrauer/mtimelog/releases/download/v0.1.0/mtimelog_linux_amd64 \
+curl -Lo mtimelog https://github.com/mrauer/mtimelog/releases/download/v1.1.0/mtimelog_linux_amd64 \
 && chmod +x mtimelog \
 && sudo mv mtimelog /usr/local/bin
 ```
@@ -72,7 +72,7 @@ curl -Lo mtimelog https://github.com/mrauer/mtimelog/releases/download/v0.1.0/mt
 ### Mac
 
 ```bash
-curl -Lo mtimelog https://github.com/mrauer/mtimelog/releases/download/v0.1.0/mtimelog_darwin_amd64 \
+curl -Lo mtimelog https://github.com/mrauer/mtimelog/releases/download/v1.1.0/mtimelog_darwin_amd64 \
 && chmod +x mtimelog \
 && sudo mv mtimelog /usr/local/bin
 ```
@@ -100,8 +100,8 @@ All entries are saved in a simple text file named `work_log.txt` in the same dir
 Example log entry:
 
 ```
-2025-04-20 09:12:01 START  
-2025-04-20 12:34:10 STOP
+20250614T114517,1
+20250614T115554,0
 ```
 
 ## Contribute
