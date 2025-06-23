@@ -28,7 +28,7 @@ const (
 	defaultHeight    = 300
 	logDateFormat    = "20060102T150405"
 
-	appVersion      = "v1.1.0"
+	appVersion      = "v1.1.1"
 	appName         = "mtimelog Lite"
 	workdaysPerWeek = 5 // <-- You can change this to 6 or 7 as needed
 )
@@ -126,8 +126,24 @@ func getWeeklySummary() string {
 		mins += int(time.Since(currentSessionStart).Minutes())
 	}
 
-	perDay := mins / workdaysPerWeek
+	elapsedWorkDays := getElapsedWorkdaysThisWeek(now)
+	if elapsedWorkDays == 0 {
+		elapsedWorkDays = 1 // Avoid divide by 0
+	}
+	perDay := mins / elapsedWorkDays
+
 	return fmt.Sprintf("This Week's Work: %s (%s/day)", formatDuration(mins), formatDuration(perDay))
+}
+
+func getElapsedWorkdaysThisWeek(now time.Time) int {
+	weekday := int(now.Weekday())
+	if weekday == 0 {
+		weekday = 7 // Treat Sunday as 7
+	}
+	if weekday > workdaysPerWeek {
+		return workdaysPerWeek
+	}
+	return weekday
 }
 
 func getState() string {
